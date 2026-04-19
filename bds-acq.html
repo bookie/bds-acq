@@ -61,10 +61,11 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-400 mb-1">Signal Strength (C/N0)</label>
                         <select id="param-sig">
-                            <option value="44">44 dB-Hz (-130 dBm, Open Sky)</option>
-                            <option value="38">38 dB-Hz (-136 dBm, Moderate)</option>
-                            <option value="32" selected>32 dB-Hz (-142 dBm, Weak)</option>
-                            <option value="26">26 dB-Hz (-148 dBm, Very Weak)</option>
+                            <option value="42">42 dB-Hz (-130 dBm, Open Sky)</option>
+                            <option value="36">36 dB-Hz (-136 dBm, Moderate)</option>
+                            <option value="30" selected>30 dB-Hz (-142 dBm, Weak)</option>
+                            <option value="24">24 dB-Hz (-148 dBm, Very Weak)</option>
+                            <option value="22">22 dB-Hz (-150 dBm, Extreme)</option>
                         </select>
                     </div>
                     <div>
@@ -101,8 +102,10 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-400 mb-1">Doppler Search Range</label>
                         <select id="param-search">
-                            <option value="5000">+/- 5 kHz</option>
-                            <option value="10000" selected>+/- 10 kHz</option>
+                            <option value="0">0 kHz (no Doppler)</option>
+                            <option value="1000">+/- 1 kHz</option>
+                            <option value="2000">+/- 2 kHz</option>
+                            <option value="5000" selected>+/- 5 kHz</option>
                         </select>
                     </div>
                 </div>
