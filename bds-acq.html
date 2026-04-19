@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta name="x-poe-datastore-behavior" content="local_only"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+<!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive BeiDou B1I Acquisition</title>
@@ -10,8 +12,9 @@
         .active-block-success { background-color: #22c55e !important; box-shadow: 0 0 20px #22c55e; transform: scale(1.05); color: white !important;}
         .active-block-fail { background-color: #ef4444 !important; box-shadow: 0 0 20px #ef4444; transform: scale(1.05); color: white !important;}
         canvas { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.5rem; }
-        select { background-color: #1e293b; border: 1px solid #475569; color: white; padding: 0.5rem; border-radius: 0.25rem; outline: none; width: 100%;}
-        select:focus { border-color: #3b82f6; }
+        select, input { background-color: #1e293b; border: 1px solid #475569; color: white; padding: 0.5rem; border-radius: 0.25rem; outline: none; width: 100%;}
+        select:focus, input:focus { border-color: #3b82f6; }
+        .result-box { font-family: 'Courier New', monospace; font-size: 0.8rem; line-height: 1.6; }
     </style>
 </head>
 <body class="p-4 md:p-8 flex flex-col items-center min-h-screen">
@@ -20,98 +23,114 @@
         <div class="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-white mb-2">Interactive BeiDou B1I Acquisition</h1>
-                <p class="text-slate-400">Configure the hardware pipeline parameters and run the acquisition simulation.</p>
+                <p class="text-slate-400">Full FFT-based parallel code phase search with real B1I PRN codes.</p>
             </div>
             <div class="flex gap-2 w-full md:w-auto">
                 <button id="startBtn" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded shadow-lg transition-colors w-full md:w-auto">
-                    Start Simulation
+                    Start Acquisition
                 </button>
             </div>
         </div>
 
-        <!-- Control Panels Grouped -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            
-            <!-- Group 1: Signal Characteristics -->
+        <!-- Control Panels -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+
+            <!-- Group 1: Satellite -->
             <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700">
-                <h3 class="text-md font-bold text-white mb-4 border-b border-slate-600 pb-2">1. Signal Characteristics</h3>
-                <div class="flex flex-col gap-4">
+                <h3 class="text-md font-bold text-white mb-4 border-b border-slate-600 pb-2">1. Satellite</h3>
+                <div class="flex flex-col gap-3">
                     <div>
-                        <label for="param-sig" class="block text-xs font-semibold text-slate-400 mb-1">Signal Strength</label>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">PRN (1-63)</label>
+                        <select id="param-prn">
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Nav Message Type</label>
+                        <select id="param-nav">
+                            <option value="D1" selected>D1 (MEO/IGSO, 50 bps, NH code)</option>
+                            <option value="D2">D2 (GEO, 500 bps, no NH)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Group 2: Signal Characteristics -->
+            <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700">
+                <h3 class="text-md font-bold text-white mb-4 border-b border-slate-600 pb-2">2. Signal</h3>
+                <div class="flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Signal Strength (C/N0)</label>
                         <select id="param-sig">
-                            <option value="-130">-130 dBm (Strong, Open Sky)</option>
-                            <option value="-140">-140 dBm (Weak, Light Foliage)</option>
-                            <option value="-150" selected="selected">-150 dBm (Very Weak, Indoors)</option>
+                            <option value="44">44 dB-Hz (-130 dBm, Open Sky)</option>
+                            <option value="38">38 dB-Hz (-136 dBm, Moderate)</option>
+                            <option value="32" selected>32 dB-Hz (-142 dBm, Weak)</option>
+                            <option value="26">26 dB-Hz (-148 dBm, Very Weak)</option>
                         </select>
                     </div>
                     <div>
-                        <label for="param-doppler" class="block text-xs font-semibold text-purple-400 mb-1">Residual Doppler Shift</label>
+                        <label class="block text-xs font-semibold text-purple-400 mb-1">True Doppler Offset</label>
                         <select id="param-doppler">
-                            <option value="0" selected="selected">0 Hz (Perfectly Aligned)</option>
-                            <option value="25">25 Hz (Slight Mismatch)</option>
-                            <option value="50">50 Hz (Nulls at 20ms Tc)</option>
-                            <option value="250">250 Hz</option>
-                            <option value="500">500 Hz (High Dynamics)</option>
+                            <option value="0" selected>0 Hz</option>
+                            <option value="1200">1200 Hz</option>
+                            <option value="3500">3500 Hz</option>
+                            <option value="7500">7500 Hz</option>
                         </select>
                     </div>
                 </div>
             </div>
 
-            <!-- Group 2: Baseband Settings -->
+            <!-- Group 3: Baseband -->
             <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700">
-                <h3 class="text-md font-bold text-white mb-4 border-b border-slate-600 pb-2">2. Baseband Settings</h3>
-                <div class="flex flex-col gap-4">
+                <h3 class="text-md font-bold text-white mb-4 border-b border-slate-600 pb-2">3. Baseband</h3>
+                <div class="flex flex-col gap-3">
                     <div>
-                        <label for="param-adc" class="block text-xs font-semibold text-slate-400 mb-1">ADC Sample Rate</label>
-                        <select id="param-adc">
-                            <option value="20">20 MHz</option>
-                            <option value="50" selected="selected">50 MHz</option>
-                            <option value="100">100 MHz</option>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Sample Rate (post-decimation)</label>
+                        <select id="param-fs">
+                            <option value="4096" selected>4.096 MHz (2x code rate)</option>
+                            <option value="8192">8.192 MHz (4x code rate)</option>
                         </select>
                     </div>
                     <div>
-                        <label for="param-lpf" class="block text-xs font-semibold text-slate-400 mb-1">LPF Cutoff (Anti-Alias)</label>
-                        <select id="param-lpf">
-                            <option value="2" selected="selected">2 MHz (Ideal for B1I)</option>
-                            <option value="6">6 MHz (Too wide)</option>
-                            <option value="15">15 MHz (No filtering)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="param-dec" class="block text-xs font-semibold text-slate-400 mb-1">Decimated Rate (To FFT)</label>
-                        <select id="param-dec">
-                            <option value="4" selected="selected">4 MHz (Nyquist = 2 MHz)</option>
-                            <option value="8">8 MHz (Nyquist = 4 MHz)</option>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Doppler Search Range</label>
+                        <select id="param-search">
+                            <option value="5000">+/- 5 kHz</option>
+                            <option value="10000" selected>+/- 10 kHz</option>
                         </select>
                     </div>
                 </div>
             </div>
 
-            <!-- Group 3: Acquisition Settings -->
+            <!-- Group 4: Acquisition -->
             <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700">
-                <h3 class="text-md font-bold text-white mb-4 border-b border-slate-600 pb-2">3. Acquisition Settings</h3>
-                <div class="flex flex-col gap-4">
+                <h3 class="text-md font-bold text-white mb-4 border-b border-slate-600 pb-2">4. Acquisition</h3>
+                <div class="flex flex-col gap-3">
                     <div>
-                        <label for="param-coh" class="block text-xs font-semibold text-blue-400 mb-1">Coherent Integration (Tc)</label>
+                        <label class="block text-xs font-semibold text-blue-400 mb-1">Coherent Integration (Tc)</label>
                         <select id="param-coh">
-                            <option value="1">1 ms (Standard B1I Code Period)</option>
+                            <option value="1">1 ms (1 code period)</option>
                             <option value="5">5 ms</option>
                             <option value="10">10 ms</option>
-                            <option value="20" selected="selected">20 ms (Full Data Bit)</option>
+                            <option value="20" selected>20 ms (full NH period)</option>
                         </select>
                     </div>
                     <div>
-                        <label for="param-noncoh" class="block text-xs font-semibold text-blue-400 mb-1">Non-Coherent Accumulations</label>
+                        <label class="block text-xs font-semibold text-blue-400 mb-1">Non-Coherent Averages</label>
                         <select id="param-noncoh">
-                            <option value="1">1x (No extra accumulation)</option>
-                            <option value="5">5x</option>
-                            <option value="10">10x</option>
-                            <option value="20" selected="selected">20x (Heavy smoothing)</option>
+                            <option value="1">1</option>
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Pfa (False Alarm Prob.)</label>
+                        <select id="param-pfa">
+                            <option value="1e-3">1e-3</option>
+                            <option value="1e-4" selected>1e-4</option>
+                            <option value="1e-5">1e-5</option>
                         </select>
                     </div>
                 </div>
             </div>
-
         </div>
 
         <!-- Hardware Block Diagram -->
@@ -127,385 +146,813 @@
         </div>
 
         <!-- 4-Pane Graph Layout -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- Step 1: ADC Spectrum -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700">
                 <h2 class="text-lg font-semibold mb-1 text-blue-400">Step 1: ADC Sampling</h2>
-                <p class="text-xs text-slate-400 mb-1">Digitizes the analog RF front-end output at the configured sample rate. The B1I signal at 1561.098 MHz is down-converted to an intermediate frequency, then sampled. A higher ADC rate widens the Nyquist zone, capturing more of the band but increasing data volume and power. The spectrum shows the signal energy concentrated near baseband amid wideband thermal noise.</p>
-                <p class="text-xs text-slate-400 mb-2 h-8" id="status-adc">Waiting for simulation...</p>
-                <canvas id="canvas-adc" width="500" height="220" class="w-full" role="img" aria-label="ADC frequency spectrum"></canvas>
+                <p class="text-xs text-slate-400 mb-1">Digitized RF spectrum showing B1I signal power in noise.</p>
+                <p class="text-xs text-slate-400 mb-2 h-6" id="status-adc">Waiting...</p>
+                <canvas id="canvas-adc" width="500" height="220" class="w-full" role="img" aria-label="ADC spectrum"></canvas>
             </div>
-
-            <!-- Step 2: Mixer & LPF -->
             <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700">
                 <h2 class="text-lg font-semibold mb-1 text-purple-400">Step 2: Mixer &amp; LPF</h2>
-                <p class="text-xs text-slate-400 mb-1">A digital mixer multiplies the sampled signal by a complex carrier (e^(−j2πf<sub>IF</sub>t)) to translate the B1I signal to baseband. A low-pass FIR filter then removes out-of-band noise and images. The LPF cutoff must be &le; the decimated Nyquist rate to prevent aliasing in the next stage. A 2 MHz cutoff is ideal for B1I's ~4 MHz null-to-null bandwidth.</p>
-                <p class="text-xs text-slate-400 mb-2 h-8" id="status-lpf">Waiting for simulation...</p>
-                <canvas id="canvas-lpf" width="500" height="220" class="w-full" role="img" aria-label="Mixer and low-pass filter spectrum"></canvas>
+                <p class="text-xs text-slate-400 mb-1">Baseband mixing and anti-alias filtering.</p>
+                <p class="text-xs text-slate-400 mb-2 h-6" id="status-lpf">Waiting...</p>
+                <canvas id="canvas-lpf" width="500" height="220" class="w-full" role="img" aria-label="LPF spectrum"></canvas>
             </div>
-
-            <!-- Step 3: Decimation -->
             <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700">
                 <h2 class="text-lg font-semibold mb-1 text-orange-400">Step 3: Decimation</h2>
-                <p class="text-xs text-slate-400 mb-1">Reduces the sample rate by an integer factor M (e.g. 50 MHz &rarr; 4 MHz via M=12.5, implemented as a CIC or polyphase filter). This lowers the FFT size and SRAM requirements. If the LPF did not adequately suppress energy above the new Nyquist rate (f<sub>s</sub>/2), high-frequency noise folds into the baseband, raising the noise floor and degrading acquisition sensitivity.</p>
-                <p class="text-xs text-slate-400 mb-2 h-8" id="status-dec">Waiting for simulation...</p>
+                <p class="text-xs text-slate-400 mb-1">Rate reduction for efficient FFT processing.</p>
+                <p class="text-xs text-slate-400 mb-2 h-6" id="status-dec">Waiting...</p>
                 <canvas id="canvas-dec" width="500" height="220" class="w-full" role="img" aria-label="Decimated spectrum"></canvas>
             </div>
-
-            <!-- Step 4: Correlation -->
             <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700">
-                <h2 class="text-lg font-semibold mb-1 text-green-400">Step 4: Correlation (FFT + Int)</h2>
-                <p class="text-xs text-slate-400 mb-1">Performs circular correlation with a local replica of the B1I NH+PRN code via FFT: FFT(received) &times; conj(FFT(local)), then IFFT. Coherent integration (T<sub>c</sub>) sums magnitudes over one or more code periods before squaring, gaining SNR proportional to T<sub>c</sub> but suffering sinc-loss if residual Doppler is non-zero. Non-coherent accumulation sums |correlation|&sup2; across multiple coherent blocks, providing further processing gain against squaring loss.</p>
-                <p class="text-xs text-slate-400 mb-2 h-8" id="status-corr">Waiting for simulation...</p>
-                <canvas id="canvas-corr" width="500" height="220" class="w-full" role="img" aria-label="Correlation accumulated power"></canvas>
+                <h2 class="text-lg font-semibold mb-1 text-green-400">Step 4: Acquisition (Doppler x Code Phase)</h2>
+                <p class="text-xs text-slate-400 mb-1">FFT-based parallel code phase search with CFAR detection.</p>
+                <p class="text-xs text-slate-400 mb-2 h-6" id="status-corr">Waiting...</p>
+                <canvas id="canvas-corr" width="500" height="280" class="w-full" role="img" aria-label="Acquisition result"></canvas>
             </div>
+        </div>
 
+        <!-- Results Panel -->
+        <div class="bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-700 mb-6">
+            <h3 class="text-md font-bold text-white mb-2 border-b border-slate-600 pb-2">Acquisition Result</h3>
+            <pre id="result-box" class="result-box text-slate-300 min-h-[60px]">No acquisition run yet.</pre>
         </div>
     </div>
 
-    <script>
-        const startBtn = document.getElementById('startBtn');
-        const statusAdc = document.getElementById('status-adc');
-        const statusLpf = document.getElementById('status-lpf');
-        const statusDec = document.getElementById('status-dec');
-        const statusCorr = document.getElementById('status-corr');
-        
-        const adcCtx = document.getElementById('canvas-adc').getContext('2d');
-        const lpfCtx = document.getElementById('canvas-lpf').getContext('2d');
-        const decCtx = document.getElementById('canvas-dec').getContext('2d');
-        const corrCtx = document.getElementById('canvas-corr').getContext('2d');
-        
-        const w = 500;
-        const h = 220;
+<script>
+// ============================================================
+// B1I PRN Code Generator
+// ============================================================
+const B1I_CODE_LENGTH = 2046;
 
-        let animationId;
-        let lastTime = 0;
-        let elapsedSimTime = 0;
-        let isRunning = false;
+const G1_TAPS = [0,1,2,3,4,10];
+const G2_TAPS = [0,2,3,6,7,8,9,10];
 
-        const numBins = 256;
-        let correlationData = new Array(numBins).fill(0);
-        const signalBin = 128; 
+const PHASE1 = [1,1,1,1,1,1,1,1,2,3,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5,5,6,6,6,6,8,8,8,9,9,10,
+                2,3,3,3,3,3,4,4,5,5,5,5,6,8,9,9,3,5,7,4,4,5,5,5,5,6];
+const PHASE2 = [3,4,5,6,8,9,10,11,7,4,5,6,8,9,10,11,5,6,8,9,10,11,6,8,9,10,11,8,9,10,11,
+                9,10,11,10,11,11,7,4,6,8,10,11,5,9,6,8,10,11,9,9,10,11,7,7,9,5,9,6,8,10,11,9];
+const PHASE3 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,3,3,3,3,3,3,3];
 
-        // Simulation parameters
-        let p_sig, p_adc, p_lpf, p_dec, p_doppler, p_coh, p_noncoh;
-        let nyquistDec, aliasingFactor, baseSignalAmp, noiseVariance;
-        let currentNonCohStep = 0;
+// NH secondary code for D1 signals
+const NH_CODE = [0,0,0,0,0,1,0,0,1,1,0,1,0,1,0,0,1,1,1,0];
 
-        function drawGrid(ctx, titleX, titleY) {
-            ctx.clearRect(0, 0, w, h);
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1;
-            for(let i=0; i<w; i+=50) {
-                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
-            }
-            for(let i=0; i<h; i+=50) {
-                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
-            }
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '11px sans-serif';
-            ctx.fillText(titleX, w/2 - 40, h - 5);
-            ctx.save();
-            ctx.translate(12, h/2 + 40);
-            ctx.rotate(-Math.PI/2);
-            ctx.fillText(titleY, 0, 0);
-            ctx.restore();
+function generateB1ICode(prn) {
+    const idx = prn - 1;
+    // Init registers: "01010101010" (MSB = index 0)
+    let G1 = [0,1,0,1,0,1,0,1,0,1,0];
+    let G2 = [0,1,0,1,0,1,0,1,0,1,0];
+
+    const code = new Float64Array(B1I_CODE_LENGTH);
+
+    for (let chip = 0; chip < B1I_CODE_LENGTH; chip++) {
+        const g1Out = G1[10];
+        const p1 = 11 - PHASE1[idx];
+        const p2 = 11 - PHASE2[idx];
+        let g2Out = G2[p1] ^ G2[p2];
+        if (PHASE3[idx] !== 0) {
+            g2Out ^= G2[11 - PHASE3[idx]];
         }
+        code[chip] = (g1Out ^ g2Out) === 0 ? 1.0 : -1.0;
 
-        function initCanvases() {
-            drawGrid(adcCtx, "Frequency (MHz)", "Magnitude");
-            drawGrid(lpfCtx, "Frequency (MHz)", "Magnitude");
-            drawGrid(decCtx, "Frequency (MHz)", "Magnitude");
-            drawGrid(corrCtx, "Code Phase Bin", "Accumulated Power");
+        // Shift G1
+        let fb1 = 0;
+        for (const t of G1_TAPS) fb1 ^= G1[t];
+        for (let i = 10; i > 0; i--) G1[i] = G1[i-1];
+        G1[0] = fb1;
+
+        // Shift G2
+        let fb2 = 0;
+        for (const t of G2_TAPS) fb2 ^= G2[t];
+        for (let i = 10; i > 0; i--) G2[i] = G2[i-1];
+        G2[0] = fb2;
+    }
+    return code;
+}
+
+// ============================================================
+// FFT Engine (Radix-2 Cooley-Tukey)
+// ============================================================
+function fftSize(n) {
+    let s = 1;
+    while (s < n) s <<= 1;
+    return s;
+}
+
+function bitReverse(n, bits) {
+    let r = 0;
+    for (let i = 0; i < bits; i++) {
+        r = (r << 1) | (n & 1);
+        n >>= 1;
+    }
+    return r;
+}
+
+function fft(re, im, inverse) {
+    const n = re.length;
+    const bits = Math.round(Math.log2(n));
+
+    // Bit-reversal permutation
+    for (let i = 0; i < n; i++) {
+        const j = bitReverse(i, bits);
+        if (j > i) {
+            let tmp = re[i]; re[i] = re[j]; re[j] = tmp;
+            tmp = im[i]; im[i] = im[j]; im[j] = tmp;
         }
-        initCanvases();
+    }
 
-        function resetBlocks() {
-            document.querySelectorAll('.block-diagram div').forEach(el => {
-                el.classList.remove('active-block', 'active-block-success', 'active-block-fail');
-            });
-        }
+    // Butterfly
+    for (let size = 2; size <= n; size *= 2) {
+        const half = size / 2;
+        const angle = (inverse ? 2 : -2) * Math.PI / size;
+        const wRe = Math.cos(angle);
+        const wIm = Math.sin(angle);
 
-        function setBlockActive(id, state='active') {
-            const el = document.getElementById(id);
-            if (state === 'success') {
-                el.classList.add('active-block-success');
-            } else if (state === 'fail') {
-                el.classList.add('active-block-fail');
-            } else {
-                el.classList.add('active-block');
-            }
-        }
+        for (let i = 0; i < n; i += size) {
+            let curRe = 1, curIm = 0;
+            for (let j = 0; j < half; j++) {
+                const idx1 = i + j;
+                const idx2 = i + j + half;
+                const tRe = curRe * re[idx2] - curIm * im[idx2];
+                const tIm = curRe * im[idx2] + curIm * re[idx2];
 
-        function arrayMax(arr) {
-            return arr.reduce((a, b) => a > b ? a : b);
-        }
+                re[idx2] = re[idx1] - tRe;
+                im[idx2] = im[idx1] - tIm;
+                re[idx1] += tRe;
+                im[idx1] += tIm;
 
-        function setStatusMessage(el, segments) {
-            el.textContent = '';
-            segments.forEach(seg => {
-                if (typeof seg === 'string') {
-                    el.appendChild(document.createTextNode(seg));
-                } else {
-                    const span = document.createElement('span');
-                    span.className = seg.className;
-                    span.textContent = seg.text;
-                    el.appendChild(span);
-                }
-            });
-        }
-
-        function drawSpectrum(ctx, maxFreq, applyFilter, lpfCutoff) {
-            drawGrid(ctx, "Frequency (MHz)", "Magnitude");
-            ctx.beginPath();
-            ctx.strokeStyle = '#60a5fa'; 
-            ctx.lineWidth = 2;
-            
-            for(let x = 30; x < w - 10; x++) {
-                let freq = (x - 30) / (w - 40) * maxFreq;
-                let mag = Math.random() * 80 + 20; 
-                
-                if (freq < 2) mag += 30 * Math.exp(-Math.pow(freq-0.5, 2)/0.2); 
-
-                if (applyFilter && freq > lpfCutoff) {
-                    mag = mag * 0.1; 
-                }
-
-                let y = h - 20 - mag;
-                if (x === 30) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-
-            if(applyFilter) {
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.15)'; 
-                let filterWidth = (lpfCutoff / maxFreq) * (w - 40);
-                if(filterWidth > w - 40) filterWidth = w - 40;
-                ctx.fillRect(30, 10, filterWidth, h-30);
-                ctx.strokeStyle = '#ef4444';
-                ctx.setLineDash([4, 4]);
-                ctx.beginPath();
-                ctx.moveTo(30 + filterWidth, 10);
-                ctx.lineTo(30 + filterWidth, h-20);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.fillStyle = '#ef4444';
-                ctx.fillText(`LPF: ${lpfCutoff} MHz`, 35 + filterWidth, 25);
+                const newCurRe = curRe * wRe - curIm * wIm;
+                curIm = curRe * wIm + curIm * wRe;
+                curRe = newCurRe;
             }
         }
+    }
 
-        function drawCorrelation(ctx, data, resultState = 'none') {
-            drawGrid(ctx, "Code Phase Bin", "Accumulated Power");
-            
-            let maxVal = arrayMax(data);
-            if (maxVal < 1) maxVal = 1;
-            let scaleY = (h - 40) / (maxVal * 1.1);
+    if (inverse) {
+        for (let i = 0; i < n; i++) {
+            re[i] /= n;
+            im[i] /= n;
+        }
+    }
+}
 
-            ctx.beginPath();
-            ctx.strokeStyle = '#22c55e';
-            ctx.lineWidth = 2;
+// ============================================================
+// Signal Generator
+// ============================================================
+function generateSignal(prnCode, fs_khz, cn0_db, trueDopplerHz, tcMs, numBlocks, navType) {
+    const samplesPerMs = Math.round(fs_khz);  // fs in kHz = samples per ms
+    const N = samplesPerMs;                    // samples per 1ms code period
+    const fftN = fftSize(N);
+    const totalMs = tcMs * numBlocks;
+    const totalSamples = totalMs * N;
 
-            for(let i=0; i<numBins; i++) {
-                let x = 30 + (i / numBins) * (w - 40);
-                let y = h - 20 - (data[i] * scaleY);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
+    // C/N0 -> signal amplitude
+    // P_signal / P_noise_per_hz = 10^(C/N0/10)
+    // Noise variance per sample = fs / (10^(C/N0/10))
+    const cn0Linear = Math.pow(10, cn0_db / 10);
+    const fs_hz = fs_khz * 1000;
+    const noiseStd = Math.sqrt(fs_hz / cn0Linear);
 
-            if (resultState !== 'none') {
-                let peakBin = data.indexOf(maxVal);
-                let peakX = 30 + (peakBin / numBins) * (w - 40);
-                let peakY = h - 20 - (data[peakBin] * scaleY);
-                
-                ctx.beginPath();
-                ctx.arc(peakX, peakY, 8, 0, 2 * Math.PI);
-                ctx.lineWidth = 2;
-                
-                if (resultState === 'success' && peakBin === signalBin) {
-                    ctx.strokeStyle = '#22c55e';
-                    ctx.stroke();
-                    ctx.fillStyle = '#22c55e';
-                    ctx.font = 'bold 12px sans-serif';
-                    ctx.fillText("Peak Found!", peakX + 12, peakY + 4);
-                } else {
-                    ctx.strokeStyle = '#ef4444';
-                    ctx.stroke();
-                    ctx.fillStyle = '#ef4444';
-                    ctx.font = 'bold 12px sans-serif';
-                    ctx.fillText("Noise Peak (Failed)", peakX + 12, peakY + 4);
-                }
-            }
+    // Random code phase (0 to CODE_LENGTH-1)
+    const trueCodePhase = Math.floor(Math.random() * B1I_CODE_LENGTH);
+
+    // Random data bits
+    const isD1 = navType === 'D1';
+    const dataBitMs = isD1 ? 20 : 2;
+    const numDataBits = Math.ceil(totalMs / dataBitMs);
+    const dataBits = [];
+    for (let i = 0; i < numDataBits; i++) {
+        dataBits.push(Math.random() < 0.5 ? 1 : -1);
+    }
+
+    // Generate complex baseband signal
+    const sigRe = new Float64Array(totalSamples);
+    const sigIm = new Float64Array(totalSamples);
+
+    const codeRate_kcps = 2046;  // chips per ms
+    const samplesPerChip = N / codeRate_kcps;
+
+    for (let n = 0; n < totalSamples; n++) {
+        const msIdx = Math.floor(n / N);
+        const sampleInMs = n % N;
+
+        // Code phase in chips
+        const chipFrac = (sampleInMs / samplesPerChip + trueCodePhase) % B1I_CODE_LENGTH;
+        const chipIdx = Math.floor(chipFrac);
+        const frac = chipFrac - chipIdx;
+        const nextChip = (chipIdx + 1) % B1I_CODE_LENGTH;
+        // Linear interpolation of PRN code
+        let codeVal = prnCode[chipIdx] * (1 - frac) + prnCode[nextChip] * frac;
+
+        // NH code modulation (D1 only)
+        if (isD1) {
+            const nhIdx = msIdx % 20;
+            if (NH_CODE[nhIdx]) codeVal = -codeVal;
         }
 
-        function simulate(currentTime) {
-            if (!isRunning) return;
+        // Data bit modulation
+        const dataBitIdx = Math.floor(msIdx / dataBitMs);
+        codeVal *= dataBits[dataBitIdx % numDataBits];
 
-            let deltaTime = (currentTime - lastTime) / 1000;
-            if (deltaTime > 0.1) deltaTime = 0.016;
-            lastTime = currentTime;
+        // Doppler carrier
+        const phase = 2 * Math.PI * trueDopplerHz * (n / fs_hz);
+        const cosP = Math.cos(phase);
+        const sinP = Math.sin(phase);
 
-            elapsedSimTime += deltaTime;
+        // AWGN
+        // Box-Muller for Gaussian noise
+        const u1 = Math.random() || 1e-10;
+        const u2 = Math.random();
+        const mag = noiseStd * Math.sqrt(-2 * Math.log(u1));
+        const noiseRe = mag * Math.cos(2 * Math.PI * u2);
+        const noiseIm = mag * Math.sin(2 * Math.PI * u2);
 
-            // Phase 1: ADC (0 to 0.3s)
-            if (elapsedSimTime < 0.3) {
-                resetBlocks();
-                setBlockActive('blk-adc');
-                let nyquistADC = p_adc / 2;
-                statusAdc.innerText = `ADC sampling at ${p_adc} MHz. Nyquist zone is ${nyquistADC} MHz.`;
-                drawSpectrum(adcCtx, nyquistADC, false, p_lpf);
-            } 
-            // Phase 2: Mixer & LPF (0.3s to 0.7s)
-            else if (elapsedSimTime >= 0.3 && elapsedSimTime < 0.7) {
-                resetBlocks();
-                setBlockActive('blk-mixer');
-                setBlockActive('blk-lpf');
-                let nyquistADC = p_adc / 2;
-                statusLpf.innerText = `Mixed to Baseband. Applying ${p_lpf} MHz Low-Pass Filter.`;
-                drawSpectrum(lpfCtx, nyquistADC, true, p_lpf);
-            } 
-            // Phase 3: Decimation (0.7s to 1.0s)
-            else if (elapsedSimTime >= 0.7 && elapsedSimTime < 1.0) {
-                resetBlocks();
-                setBlockActive('blk-dec');
-                setBlockActive('blk-sram');
-                if (aliasingFactor > 1) {
-                    setStatusMessage(statusDec, [
-                        { className: 'text-red-400 font-bold', text: 'Warning: Aliasing!' },
-                        ` LPF (${p_lpf}MHz) > Decimated Nyquist (${nyquistDec}MHz). Noise folding in!`
-                    ]);
-                } else {
-                    statusDec.innerText = `Decimating to ${p_dec} MHz. No aliasing detected.`;
-                }
-                drawSpectrum(decCtx, nyquistDec * 2, false, p_lpf); 
-            }
-            // Phase 4: FFT & Integration (1.0s to 3.0s)
-            else if (elapsedSimTime >= 1.0 && elapsedSimTime < 3.0) {
-                resetBlocks();
-                setBlockActive('blk-fft');
-                setBlockActive('blk-coh');
-                setBlockActive('blk-noncoh');
-                
-                let integrationProgress = (elapsedSimTime - 1.0) / 2.0;
-                let targetStep = Math.floor(integrationProgress * p_noncoh);
-                
-                if (targetStep > currentNonCohStep && currentNonCohStep < p_noncoh) {
-                    currentNonCohStep++;
-                    
-                    let tc_sec = p_coh / 1000.0;
-                    let x = p_doppler * tc_sec;
-                    let sincLoss = (x === 0) ? 1.0 : Math.abs(Math.sin(Math.PI * x) / (Math.PI * x));
-                    let lossPercent = ((1.0 - sincLoss) * 100).toFixed(0);
+        // Complex signal: code * exp(j*Doppler) + noise
+        sigRe[n] = codeVal * cosP + noiseRe;
+        sigIm[n] = codeVal * sinP + noiseIm;
+    }
 
-                    setStatusMessage(statusCorr, [
-                        `Integration: Coh = ${p_coh}ms. Non-Coh: ${currentNonCohStep}/${p_noncoh}. `,
-                        { className: 'text-purple-400', text: `Doppler Loss: ${lossPercent}%` }
-                    ]);
-                    
-                    let cohSignalVoltage = baseSignalAmp * p_coh * sincLoss;
-                    let cohNoiseVoltage = noiseVariance * Math.sqrt(p_coh) * aliasingFactor;
+    return { sigRe, sigIm, trueCodePhase, totalSamples, N, fftN, samplesPerMs };
+}
 
-                    for(let i=0; i<numBins; i++) {
-                        let noiseSample = (Math.random() + Math.random() + Math.random() - 1.5) * cohNoiseVoltage;
-                        let signalSample = (i === signalBin) ? cohSignalVoltage : 0; 
-                        let magnitude = Math.abs(signalSample + noiseSample);
-                        correlationData[i] += (magnitude * magnitude);
-                    }
-                    drawCorrelation(corrCtx, correlationData);
-                }
-            }
-            // End of Simulation (3.0s+)
-            else if (elapsedSimTime >= 3.0) {
-                let maxVal = arrayMax(correlationData);
-                let avgNoise = correlationData.reduce((a, b) => a + b, 0) / numBins;
-                let snr = maxVal / avgNoise;
-                
-                let success = (snr > 1.8) && (correlationData.indexOf(maxVal) === signalBin);
+// ============================================================
+// Acquisition Engine
+// ============================================================
 
-                resetBlocks(); 
-                setBlockActive('blk-noncoh', success ? 'success' : 'fail');
-                
-                if (success) {
-                    setStatusMessage(statusCorr, [
-                        { className: 'text-green-400 font-bold', text: 'Success!' },
-                        ` Signal pulled from noise. Final SNR: ${snr.toFixed(2)}`
-                    ]);
-                } else {
-                    if (aliasingFactor > 1) {
-                        setStatusMessage(statusCorr, [
-                            { className: 'text-red-400 font-bold', text: 'Failed!' },
-                            ` Aliased noise buried the signal. SNR: ${snr.toFixed(2)}`
-                        ]);
-                    } else if (p_doppler > 0 && (p_doppler * (p_coh / 1000.0)) >= 0.5) {
-                        setStatusMessage(statusCorr, [
-                            { className: 'text-red-400 font-bold', text: 'Failed!' },
-                            ` Doppler Sinc loss destroyed the signal. SNR: ${snr.toFixed(2)}`
-                        ]);
+// Oversample local PRN code to sample rate, produce FFT of it
+function prepareLocalCode(prnCode, N, fftN) {
+    const codeRate_cps = 2046;
+    const samplesPerChip = N / codeRate_cps;
+
+    const localRe = new Float64Array(fftN);
+    const localIm = new Float64Array(fftN);
+
+    for (let i = 0; i < N; i++) {
+        const chipFrac = i / samplesPerChip;
+        const chipIdx = Math.floor(chipFrac) % B1I_CODE_LENGTH;
+        const frac = chipFrac - Math.floor(chipFrac);
+        const nextChip = (chipIdx + 1) % B1I_CODE_LENGTH;
+        localRe[i] = prnCode[chipIdx] * (1 - frac) + prnCode[nextChip] * frac;
+        localIm[i] = 0;
+    }
+
+    fft(localRe, localIm, false);
+    // Take complex conjugate for correlation
+    for (let i = 0; i < fftN; i++) localIm[i] = -localIm[i];
+
+    return { localRe, localIm };
+}
+
+// Run one Doppler bin: carrier wipeoff + FFT correlation for one 1ms block
+function correlateOneMs(sigRe, sigIm, startSample, N, fftN, dopplerHz, fs_hz, localCodeRe, localCodeIm) {
+    const mixRe = new Float64Array(fftN);
+    const mixIm = new Float64Array(fftN);
+
+    // Carrier wipe-off
+    for (let i = 0; i < N; i++) {
+        const n = startSample + i;
+        const phase = -2 * Math.PI * dopplerHz * (n / fs_hz);
+        const cosP = Math.cos(phase);
+        const sinP = Math.sin(phase);
+        const sr = sigRe[n], si = sigIm[n];
+        mixRe[i] = sr * cosP - si * sinP;
+        mixIm[i] = sr * sinP + si * cosP;
+    }
+
+    // FFT
+    fft(mixRe, mixIm, false);
+
+    // Multiply by conj(FFT(local_code))
+    for (let i = 0; i < fftN; i++) {
+        const lr = localCodeRe[i], li = localCodeIm[i];
+        const mr = mixRe[i], mi = mixIm[i];
+        mixRe[i] = mr * lr - mi * li;
+        mixIm[i] = mr * li + mi * lr;
+    }
+
+    // IFFT -> time-domain correlation (code phase)
+    fft(mixRe, mixIm, true);
+
+    return { corrRe: mixRe, corrIm: mixIm };
+}
+
+// ============================================================
+// Visualization Helpers
+// ============================================================
+
+function drawGrid(ctx, w, h, titleX, titleY) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < w; i += 50) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+    }
+    for (let i = 0; i < h; i += 50) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+    }
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(titleX, w/2 - 30, h - 4);
+    ctx.save();
+    ctx.translate(12, h/2 + 30);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText(titleY, 0, 0);
+    ctx.restore();
+}
+
+function drawSpectrum(ctx, w, h, spectrumDb, freqLabels, titleX) {
+    drawGrid(ctx, w, h, titleX, "dB");
+    const margin = { left: 30, right: 10, top: 10, bottom: 20 };
+    const pw = w - margin.left - margin.right;
+    const ph = h - margin.top - margin.bottom;
+
+    if (!spectrumDb || spectrumDb.length === 0) return;
+
+    // Find range
+    let minDb = Infinity, maxDb = -Infinity;
+    for (let i = 0; i < spectrumDb.length; i++) {
+        if (spectrumDb[i] < minDb) minDb = spectrumDb[i];
+        if (spectrumDb[i] > maxDb) maxDb = spectrumDb[i];
+    }
+    const range = Math.max(maxDb - minDb, 1);
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#60a5fa';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < spectrumDb.length; i++) {
+        const x = margin.left + (i / spectrumDb.length) * pw;
+        const y = margin.top + ph - ((spectrumDb[i] - minDb) / range) * ph;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Freq axis labels
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px sans-serif';
+    if (freqLabels) {
+        for (let i = 0; i <= 4; i++) {
+            const x = margin.left + (i / 4) * pw;
+            ctx.fillText(freqLabels[i] || '', x, h - 4);
+        }
+    }
+}
+
+function drawAcquisitionMap(ctx, w, h, grid, numDopplerBins, numCodeBins, peakDoppler, peakCode, threshold, maxPower) {
+    const margin = { left: 50, right: 10, top: 10, bottom: 30 };
+    const pw = w - margin.left - margin.right;
+    const ph = h - margin.top - margin.bottom;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, w, h);
+
+    if (!grid || grid.length === 0) return;
+
+    const cellW = pw / numCodeBins;
+    const cellH = ph / numDopplerBins;
+
+    // Draw heatmap
+    for (let d = 0; d < numDopplerBins; d++) {
+        for (let c = 0; c < numCodeBins; c++) {
+            const val = grid[d * numCodeBins + c];
+            const norm = Math.min(val / (threshold * 2), 1);
+            const r = Math.floor(norm * 255);
+            const g = Math.floor(norm * 100);
+            const b = Math.floor((1 - norm) * 100);
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillRect(margin.left + c * cellW, margin.top + d * cellH, Math.ceil(cellW), Math.ceil(cellH));
+        }
+    }
+
+    // Threshold line as a text annotation
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(`CFAR Threshold: ${threshold.toFixed(1)}`, margin.left + 5, margin.top + 12);
+
+    // Mark peak
+    if (peakDoppler >= 0 && peakCode >= 0) {
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+            margin.left + peakCode * cellW - 2,
+            margin.top + peakDoppler * cellH - 2,
+            cellW + 4, cellH + 4
+        );
+        ctx.fillStyle = '#22c55e';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText('Peak', margin.left + peakCode * cellW + cellW + 4, margin.top + peakDoppler * cellH + cellH);
+    }
+
+    // Axis labels
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('Code Phase (chips)', margin.left + pw / 2 - 40, h - 4);
+    ctx.save();
+    ctx.translate(12, margin.top + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Doppler (Hz)', 0, 0);
+    ctx.restore();
+}
+
+// ============================================================
+// Main Simulation
+// ============================================================
+const startBtn = document.getElementById('startBtn');
+const statusAdc = document.getElementById('status-adc');
+const statusLpf = document.getElementById('status-lpf');
+const statusDec = document.getElementById('status-dec');
+const statusCorr = document.getElementById('status-corr');
+const resultBox = document.getElementById('result-box');
+
+const adcCtx = document.getElementById('canvas-adc').getContext('2d');
+const lpfCtx = document.getElementById('canvas-lpf').getContext('2d');
+const decCtx = document.getElementById('canvas-dec').getContext('2d');
+const corrCtx = document.getElementById('canvas-corr').getContext('2d');
+
+// Populate PRN selector
+const prnSelect = document.getElementById('param-prn');
+for (let i = 1; i <= 63; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `PRN ${i}`;
+    if (i === 1) opt.selected = true;
+    prnSelect.appendChild(opt);
+}
+
+let isRunning = false;
+
+function resetBlocks() {
+    document.querySelectorAll('.block-diagram div').forEach(el => {
+        el.classList.remove('active-block', 'active-block-success', 'active-block-fail');
+    });
+}
+function setBlock(id, state) {
+    const el = document.getElementById(id);
+    if (state === 'success') el.classList.add('active-block-success');
+    else if (state === 'fail') el.classList.add('active-block-fail');
+    else el.classList.add('active-block');
+}
+
+function setStatus(el, msg) { el.textContent = msg; }
+
+function setStatusHTML(el, html) { el.innerHTML = html; }
+
+startBtn.addEventListener('click', runAcquisition);
+
+async function runAcquisition() {
+    if (isRunning) return;
+    isRunning = true;
+    startBtn.disabled = true;
+    startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    startBtn.textContent = 'Acquiring...';
+    resultBox.textContent = 'Running acquisition...';
+    resetBlocks();
+
+    // Read params
+    const prn = parseInt(document.getElementById('param-prn').value);
+    const navType = document.getElementById('param-nav').value;
+    const cn0 = parseInt(document.getElementById('param-sig').value);
+    const trueDoppler = parseInt(document.getElementById('param-doppler').value);
+    const fs_khz = parseInt(document.getElementById('param-fs').value); // e.g. 4096 kHz = 4.096 MHz
+    const searchRange = parseInt(document.getElementById('param-search').value);
+    const cohMs = parseInt(document.getElementById('param-coh').value);
+    const nonCoh = parseInt(document.getElementById('param-noncoh').value);
+    const pfa = parseFloat(document.getElementById('param-pfa').value);
+
+    const isD1 = navType === 'D1';
+
+    // Validate: D2 with >2ms coherent is problematic (500bps = 2ms bit period)
+    if (!isD1 && cohMs > 2) {
+        resultBox.textContent = 'WARNING: D2 (GEO) has 2ms data bit period. Coherent >2ms may cause bit sign flips.';
+    }
+
+    // Doppler bin spacing: 2/(3*Tc)
+    const tc_s = cohMs / 1000;
+    const dopplerStep = Math.ceil(2 / (3 * tc_s));
+    // Doppler bins
+    const dopplerBins = [];
+    for (let f = -searchRange; f <= searchRange; f += dopplerStep) {
+        dopplerBins.push(f);
+    }
+
+    const N = Math.round(fs_khz); // samples per 1ms
+    const fftN = fftSize(N);
+    const fs_hz = fs_khz * 1000;
+
+    // ---- Step 1: ADC ----
+    setBlock('blk-adc');
+    setStatus(statusAdc, `Sampling at ${fs_khz} kHz (${fs_khz/1000} MHz). Generating signal...`);
+    await yieldFrame();
+
+    const t0 = performance.now();
+
+    // Generate PRN code
+    const prnCode = generateB1ICode(prn);
+
+    // Generate received signal
+    const sig = generateSignal(prnCode, fs_khz, cn0, trueDoppler, cohMs, nonCoh, navType);
+
+    // Draw ADC spectrum (from a portion of the generated signal)
+    drawSignalSpectrum(adcCtx, 500, 220, sig.sigRe, sig.sigIm, sig.N, sig.fftN, fs_khz,
+        `ADC: ${fs_khz/1000} MHz sample rate. C/N0 = ${cn0} dB-Hz`);
+    setStatus(statusAdc, `Signal generated. True code phase: ${sig.trueCodePhase} chips, Doppler: ${trueDoppler} Hz.`);
+    await yieldFrame();
+
+    // ---- Step 2: Mixer & LPF ----
+    resetBlocks();
+    setBlock('blk-mixer');
+    setBlock('blk-lpf');
+    setStatus(statusLpf, 'Mixed to baseband. LPF applied (implicit in signal generation).');
+    drawBasebandSpectrum(lpfCtx, 500, 220, sig.sigRe, sig.sigIm, sig.N, sig.fftN, fs_khz);
+    await yieldFrame();
+
+    // ---- Step 3: Decimation ----
+    resetBlocks();
+    setBlock('blk-dec');
+    setBlock('blk-sram');
+    setStatus(statusDec, `Decimated to ${fs_khz/1000} MHz. FFT size: ${fftN}. Storing ${sig.totalSamples} samples.`);
+    drawDecimatedSpectrum(decCtx, 500, 220, sig.sigRe, sig.sigIm, sig.N, sig.fftN, fs_khz);
+    await yieldFrame();
+
+    // ---- Step 4: Acquisition ----
+    resetBlocks();
+    setBlock('blk-sram');
+    setBlock('blk-fft');
+    setBlock('blk-coh');
+    setBlock('blk-noncoh');
+    setStatus(statusCorr, `Searching ${dopplerBins.length} Doppler bins x ${fftN} code phases...`);
+
+    // Prepare local code FFT
+    const localCode = prepareLocalCode(prnCode, N, fftN);
+
+    // Acquisition grid: Doppler x Code Phase (downsampled code phase for display)
+    const displayCodeBins = Math.min(256, fftN);
+    const codeBinSkip = Math.max(1, Math.floor(fftN / displayCodeBins));
+    const actualCodeBins = Math.ceil(fftN / codeBinSkip);
+
+    const acqGrid = new Float64Array(dopplerBins.length * actualCodeBins);
+    const fullGrid = new Float64Array(dopplerBins.length * fftN);
+
+    // Temp buffers for coherent integration
+    const cohSumRe = new Float64Array(fftN);
+    const cohSumIm = new Float64Array(fftN);
+
+    // Process Doppler bins progressively
+    const binsPerFrame = Math.max(1, Math.ceil(dopplerBins.length / 30));
+
+    for (let dIdx = 0; dIdx < dopplerBins.length; dIdx += binsPerFrame) {
+        const endIdx = Math.min(dIdx + binsPerFrame, dopplerBins.length);
+
+        for (let d = dIdx; d < endIdx; d++) {
+            const dopplerHz = dopplerBins[d];
+
+            // Non-coherent accumulation across blocks
+            let nonCohPower = new Float64Array(fftN);
+
+            for (let blk = 0; blk < nonCoh; blk++) {
+                // Coherent integration across Tc/1ms sub-blocks
+                cohSumRe.fill(0);
+                cohSumIm.fill(0);
+
+                for (let ms = 0; ms < cohMs; ms++) {
+                    const startSample = (blk * cohMs + ms) * N;
+                    if (startSample + N > sig.totalSamples) break;
+
+                    const result = correlateOneMs(
+                        sig.sigRe, sig.sigIm, startSample, N, fftN,
+                        dopplerHz, fs_hz, localCode.localRe, localCode.localIm
+                    );
+
+                    // NH stripping for D1: multiply by known NH code
+                    if (isD1 && cohMs > 1) {
+                        const nhBit = NH_CODE[ms % 20] ? -1 : 1;
+                        for (let i = 0; i < fftN; i++) {
+                            cohSumRe[i] += result.corrRe[i] * nhBit;
+                            cohSumIm[i] += result.corrIm[i] * nhBit;
+                        }
                     } else {
-                        setStatusMessage(statusCorr, [
-                            { className: 'text-red-400 font-bold', text: 'Failed!' },
-                            ` Integration time too short for ${p_sig}dBm. SNR: ${snr.toFixed(2)}`
-                        ]);
+                        for (let i = 0; i < fftN; i++) {
+                            cohSumRe[i] += result.corrRe[i];
+                            cohSumIm[i] += result.corrIm[i];
+                        }
                     }
                 }
-                drawCorrelation(corrCtx, correlationData, success ? 'success' : 'fail');
-                
-                isRunning = false;
-                startBtn.innerText = "Restart Simulation";
-                startBtn.disabled = false;
-                startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                
-                return; 
+
+                // |coherent sum|^2
+                for (let i = 0; i < fftN; i++) {
+                    nonCohPower[i] += cohSumRe[i] * cohSumRe[i] + cohSumIm[i] * cohSumIm[i];
+                }
             }
 
-            if (isRunning) {
-                animationId = requestAnimationFrame(simulate);
+            // Store in grid (downsample code axis for display)
+            for (let i = 0; i < fftN; i++) {
+                fullGrid[d * fftN + i] = nonCohPower[i];
+            }
+            for (let c = 0; c < actualCodeBins; c++) {
+                let maxVal = 0;
+                for (let j = 0; j < codeBinSkip && (c * codeBinSkip + j) < fftN; j++) {
+                    const v = nonCohPower[c * codeBinSkip + j];
+                    if (v > maxVal) maxVal = v;
+                }
+                acqGrid[d * actualCodeBins + c] = maxVal;
             }
         }
 
-        startBtn.addEventListener('click', () => {
-            if (isRunning) return;
-            
-            p_sig = parseInt(document.getElementById('param-sig').value);
-            p_adc = parseInt(document.getElementById('param-adc').value);
-            p_lpf = parseInt(document.getElementById('param-lpf').value);
-            p_dec = parseInt(document.getElementById('param-dec').value);
-            p_doppler = parseInt(document.getElementById('param-doppler').value);
-            p_coh = parseInt(document.getElementById('param-coh').value);
-            p_noncoh = parseInt(document.getElementById('param-noncoh').value);
+        // Update progress
+        const pct = Math.round(((dIdx + binsPerFrame) / dopplerBins.length) * 100);
+        const lastDIdx = Math.min(endIdx - 1, dopplerBins.length - 1);
+        setStatus(statusCorr, `Searching... ${Math.min(pct, 100)}% (${dopplerBins[lastDIdx]} Hz)`);
 
-            nyquistDec = p_dec / 2;
-            let unattenuatedBandwidth = Math.max(0, p_lpf - nyquistDec);
-            aliasingFactor = 1.0 + (unattenuatedBandwidth / nyquistDec) * 2.5; 
+        // Progressive heatmap update
+        drawAcquisitionMap(corrCtx, 500, 280,
+            acqGrid, dopplerBins.length, actualCodeBins,
+            -1, -1, 0, 0);
 
-            if (p_sig === -130) baseSignalAmp = 4.0;
-            else if (p_sig === -140) baseSignalAmp = 1.2;
-            else baseSignalAmp = 0.35; 
+        await yieldFrame();
+    }
 
-            noiseVariance = 8.0; 
+    // ---- CFAR Detection ----
+    // Find noise floor (exclude top 5%)
+    const sorted = Array.from(fullGrid).sort((a, b) => a - b);
+    const noiseCount = Math.floor(sorted.length * 0.95);
+    let noiseMean = 0;
+    for (let i = 0; i < noiseCount; i++) noiseMean += sorted[i];
+    noiseMean /= noiseCount;
 
-            isRunning = true;
-            
-            startBtn.disabled = true;
-            startBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            startBtn.innerText = "Processing...";
-            
-            statusAdc.innerText = "Processing...";
-            statusLpf.innerText = "Waiting...";
-            statusDec.innerText = "Waiting...";
-            statusCorr.innerText = "Waiting...";
+    const threshold = noiseMean * (-Math.log(pfa));
 
-            initCanvases();
-            
-            correlationData.fill(0);
-            currentNonCohStep = 0;
-            elapsedSimTime = 0;
-            lastTime = performance.now();
-            
-            animationId = requestAnimationFrame(simulate);
-        });
-    </script>
+    // Find peak
+    let peakVal = 0, peakDopplerIdx = 0, peakCodeIdx = 0;
+    for (let d = 0; d < dopplerBins.length; d++) {
+        for (let c = 0; c < fftN; c++) {
+            const v = fullGrid[d * fftN + c];
+            if (v > peakVal) {
+                peakVal = v;
+                peakDopplerIdx = d;
+                peakCodeIdx = c;
+            }
+        }
+    }
 
+    const detected = peakVal > threshold;
+    const peakDopplerHz = dopplerBins[peakDopplerIdx];
+    const chipsPerSample = B1I_CODE_LENGTH / fftN;
+    // IFFT(X*conj(Y))[k] peaks at k = N - cp_samples for circular correlation,
+    // so true code phase = (N - peakIdx) % N
+    const peakCodeChips = ((fftN - peakCodeIdx) % fftN) * chipsPerSample;
+    const snr = peakVal / noiseMean;
 
-</body></html>
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+
+    // Map peak code to display bin
+    const displayPeakCode = Math.min(Math.floor(peakCodeIdx / codeBinSkip), actualCodeBins - 1);
+
+    // Draw final acquisition map with threshold and peak marker
+    drawAcquisitionMap(corrCtx, 500, 280,
+        acqGrid, dopplerBins.length, actualCodeBins,
+        detected ? peakDopplerIdx : -1, detected ? displayPeakCode : -1,
+        threshold, peakVal);
+
+    // Update block diagram
+    resetBlocks();
+    setBlock('blk-noncoh', detected ? 'success' : 'fail');
+
+    // Status
+    if (detected) {
+        setStatusHTML(statusCorr,
+            `<span class="text-green-400 font-bold">ACQUIRED!</span> Peak at Doppler=${peakDopplerHz} Hz, Code=${peakCodeChips.toFixed(1)} chips`);
+    } else {
+        setStatusHTML(statusCorr,
+            `<span class="text-red-400 font-bold">FAILED.</span> Peak below CFAR threshold.`);
+    }
+
+    // Results
+    const dopplerErr = Math.abs(peakDopplerHz - trueDoppler);
+    const codeErr = Math.min(
+        Math.abs(peakCodeChips - sig.trueCodePhase),
+        B1I_CODE_LENGTH - Math.abs(peakCodeChips - sig.trueCodePhase)
+    );
+
+    resultBox.textContent =
+`Acquisition Result for PRN ${prn} (${navType}, ${isD1 ? 'NH code enabled' : 'no NH'})
+============================================================
+Status:            ${detected ? 'DETECTED' : 'NOT DETECTED'}
+C/N0:              ${cn0} dB-Hz
+True Doppler:      ${trueDoppler} Hz
+True Code Phase:   ${sig.trueCodePhase} chips
+
+Peak Power:        ${peakVal.toFixed(2)}
+Noise Floor:       ${noiseMean.toFixed(2)}
+SNR (peak/noise):  ${snr.toFixed(2)}
+CFAR Threshold:    ${threshold.toFixed(2)}  (Pfa = ${pfa})
+Threshold Exceeded: ${detected ? 'YES' : 'NO'}
+
+Estimated Doppler: ${peakDopplerHz} Hz  (error: ${dopplerErr} Hz)
+Estimated Code:    ${peakCodeChips.toFixed(1)} chips  (error: ${codeErr.toFixed(1)} chips)
+
+Search Parameters:
+  Doppler range:   +/- ${searchRange} Hz, step ${dopplerStep} Hz (${dopplerBins.length} bins)
+  FFT size:        ${fftN}
+  Coherent int:    ${cohMs} ms
+  Non-coherent:    ${nonCoh} averages
+  Sample rate:     ${fs_khz/1000} MHz
+  Nav type:        ${navType} (${isD1 ? '50 bps, NH modulated' : '500 bps, no NH'})
+
+Computation time:  ${elapsed} seconds
+`;
+
+    isRunning = false;
+    startBtn.disabled = false;
+    startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    startBtn.textContent = 'Run Again';
+}
+
+function yieldFrame() {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+// ============================================================
+// Spectrum Drawing (stable, from actual signal data)
+// ============================================================
+function drawSignalSpectrum(ctx, w, h, sigRe, sigIm, N, fftN, fs_khz, label) {
+    // Take first 1ms block, compute power spectrum
+    const re = new Float64Array(fftN);
+    const im = new Float64Array(fftN);
+    for (let i = 0; i < N && i < sigRe.length; i++) {
+        re[i] = sigRe[i];
+        im[i] = sigIm[i];
+    }
+    fft(re, im, false);
+
+    // Power spectrum in dB
+    const halfN = fftN / 2;
+    const db = new Float64Array(halfN);
+    for (let i = 0; i < halfN; i++) {
+        const p = re[i]*re[i] + im[i]*im[i];
+        db[i] = 10 * Math.log10(p + 1e-20);
+    }
+    // Smooth
+    const smooth = new Float64Array(halfN);
+    const win = 8;
+    for (let i = 0; i < halfN; i++) {
+        let sum = 0, cnt = 0;
+        for (let j = -win; j <= win; j++) {
+            const idx = i + j;
+            if (idx >= 0 && idx < halfN) { sum += db[idx]; cnt++; }
+        }
+        smooth[i] = sum / cnt;
+    }
+
+    const fs_mhz = fs_khz / 1000;
+    const labels = [];
+    for (let i = 0; i <= 4; i++) labels.push((i * fs_mhz / 4).toFixed(1));
+
+    drawSpectrum(ctx, w, h, smooth, labels, "Freq (MHz)");
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(label, 35, 15);
+}
+
+function drawBasebandSpectrum(ctx, w, h, sigRe, sigIm, N, fftN, fs_khz) {
+    drawSignalSpectrum(ctx, w, h, sigRe, sigIm, N, fftN, fs_khz,
+        `Baseband. Signal energy near DC.`);
+
+    // Draw LPF cutoff annotation
+    const lpfMhz = 2.0;
+    const fs_mhz = fs_khz / 1000;
+    const margin = { left: 30, right: 10 };
+    const pw = w - margin.left - margin.right;
+    const x = margin.left + (lpfMhz / (fs_mhz / 2)) * pw;
+    if (x < w - 20) {
+        ctx.strokeStyle = '#ef4444';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, 10);
+        ctx.lineTo(x, h - 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ef4444';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(`LPF: ${lpfMhz} MHz`, x + 4, 22);
+    }
+}
+
+function drawDecimatedSpectrum(ctx, w, h, sigRe, sigIm, N, fftN, fs_khz) {
+    drawSignalSpectrum(ctx, w, h, sigRe, sigIm, N, fftN, fs_khz,
+        `Decimated to ${fs_khz/1000} MHz. Ready for FFT correlation.`);
+}
+
+// Initial canvas state
+function initCanvases() {
+    drawGrid(adcCtx, 500, 220, "Freq (MHz)", "dB");
+    drawGrid(lpfCtx, 500, 220, "Freq (MHz)", "dB");
+    drawGrid(decCtx, 500, 220, "Freq (MHz)", "dB");
+    drawGrid(corrCtx, 500, 280, "Code Phase", "Doppler");
+}
+initCanvases();
+</script>
+</body>
+</html>
