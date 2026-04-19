@@ -84,6 +84,14 @@
                 <h3 class="text-md font-bold text-white mb-4 border-b border-slate-600 pb-2">3. Baseband</h3>
                 <div class="flex flex-col gap-3">
                     <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">RF ADC Output Frequency</label>
+                        <select id="param-adc-fs">
+                            <option value="16368" selected>16.368 MHz (8x code rate)</option>
+                            <option value="32736">32.736 MHz (16x code rate)</option>
+                            <option value="49104">49.104 MHz (24x code rate)</option>
+                        </select>
+                    </div>
+                    <div>
                         <label class="block text-xs font-semibold text-slate-400 mb-1">Sample Rate (post-decimation)</label>
                         <select id="param-fs">
                             <option value="4096" selected>4.096 MHz (2x code rate)</option>
@@ -119,6 +127,10 @@
                             <option value="1">1</option>
                             <option value="5">5</option>
                             <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
                         </select>
                     </div>
                     <div>
@@ -616,7 +628,8 @@ async function runAcquisition() {
     const navType = document.getElementById('param-nav').value;
     const cn0 = parseInt(document.getElementById('param-sig').value);
     const trueDoppler = parseInt(document.getElementById('param-doppler').value);
-    const fs_khz = parseInt(document.getElementById('param-fs').value); // e.g. 4096 kHz = 4.096 MHz
+    const adcFs_khz = parseInt(document.getElementById('param-adc-fs').value); // ADC rate in kHz
+    const fs_khz = parseInt(document.getElementById('param-fs').value); // post-decimation rate in kHz
     const searchRange = parseInt(document.getElementById('param-search').value);
     const cohMs = parseInt(document.getElementById('param-coh').value);
     const nonCoh = parseInt(document.getElementById('param-noncoh').value);
@@ -642,9 +655,11 @@ async function runAcquisition() {
     const fftN = fftSize(N);
     const fs_hz = fs_khz * 1000;
 
+    const decimRatio = adcFs_khz / fs_khz;
+
     // ---- Step 1: ADC ----
     setBlock('blk-adc');
-    setStatus(statusAdc, `Sampling at ${fs_khz} kHz (${fs_khz/1000} MHz). Generating signal...`);
+    setStatus(statusAdc, `ADC at ${adcFs_khz/1000} MHz. Decimation ratio: ${decimRatio}x → ${fs_khz/1000} MHz. Generating signal...`);
     await yieldFrame();
 
     const t0 = performance.now();
@@ -655,10 +670,10 @@ async function runAcquisition() {
     // Generate received signal
     const sig = generateSignal(prnCode, fs_khz, cn0, trueDoppler, cohMs, nonCoh, navType);
 
-    // Draw ADC spectrum (from a portion of the generated signal)
-    drawSignalSpectrum(adcCtx, 500, 220, sig.sigRe, sig.sigIm, sig.N, sig.fftN, fs_khz,
-        `ADC: ${fs_khz/1000} MHz sample rate. C/N0 = ${cn0} dB-Hz`);
-    setStatus(statusAdc, `Signal generated. True code phase: ${sig.trueCodePhase} chips, Doppler: ${trueDoppler} Hz.`);
+    // Draw ADC spectrum with ADC frequency axis
+    drawSignalSpectrum(adcCtx, 500, 220, sig.sigRe, sig.sigIm, sig.N, sig.fftN, adcFs_khz,
+        `ADC: ${adcFs_khz/1000} MHz. C/N0 = ${cn0} dB-Hz. Decim: ${decimRatio}x`);
+    setStatus(statusAdc, `ADC @ ${adcFs_khz/1000} MHz → ${fs_khz/1000} MHz (decim ${decimRatio}x). True code phase: ${sig.trueCodePhase} chips.`);
     await yieldFrame();
 
     // ---- Step 2: Mixer & LPF ----
@@ -673,7 +688,7 @@ async function runAcquisition() {
     resetBlocks();
     setBlock('blk-dec');
     setBlock('blk-sram');
-    setStatus(statusDec, `Decimated to ${fs_khz/1000} MHz. FFT size: ${fftN}. Storing ${sig.totalSamples} samples.`);
+    setStatus(statusDec, `ADC ${adcFs_khz/1000} MHz → ${fs_khz/1000} MHz (decim ${decimRatio}x). FFT size: ${fftN}. Storing ${sig.totalSamples} samples.`);
     drawDecimatedSpectrum(decCtx, 500, 220, sig.sigRe, sig.sigIm, sig.N, sig.fftN, fs_khz);
     await yieldFrame();
 
@@ -700,73 +715,65 @@ async function runAcquisition() {
     const cohSumRe = new Float64Array(fftN);
     const cohSumIm = new Float64Array(fftN);
 
-    // Process Doppler bins progressively
-    const binsPerFrame = Math.max(1, Math.ceil(dopplerBins.length / 30));
+    // Process one Doppler bin at a time, updating the heatmap each step
+    for (let d = 0; d < dopplerBins.length; d++) {
+        const dopplerHz = dopplerBins[d];
 
-    for (let dIdx = 0; dIdx < dopplerBins.length; dIdx += binsPerFrame) {
-        const endIdx = Math.min(dIdx + binsPerFrame, dopplerBins.length);
+        // Non-coherent accumulation across blocks
+        let nonCohPower = new Float64Array(fftN);
 
-        for (let d = dIdx; d < endIdx; d++) {
-            const dopplerHz = dopplerBins[d];
+        for (let blk = 0; blk < nonCoh; blk++) {
+            // Coherent integration across Tc/1ms sub-blocks
+            cohSumRe.fill(0);
+            cohSumIm.fill(0);
 
-            // Non-coherent accumulation across blocks
-            let nonCohPower = new Float64Array(fftN);
+            for (let ms = 0; ms < cohMs; ms++) {
+                const startSample = (blk * cohMs + ms) * N;
+                if (startSample + N > sig.totalSamples) break;
 
-            for (let blk = 0; blk < nonCoh; blk++) {
-                // Coherent integration across Tc/1ms sub-blocks
-                cohSumRe.fill(0);
-                cohSumIm.fill(0);
+                const result = correlateOneMs(
+                    sig.sigRe, sig.sigIm, startSample, N, fftN,
+                    dopplerHz, fs_hz, localCode.localRe, localCode.localIm
+                );
 
-                for (let ms = 0; ms < cohMs; ms++) {
-                    const startSample = (blk * cohMs + ms) * N;
-                    if (startSample + N > sig.totalSamples) break;
-
-                    const result = correlateOneMs(
-                        sig.sigRe, sig.sigIm, startSample, N, fftN,
-                        dopplerHz, fs_hz, localCode.localRe, localCode.localIm
-                    );
-
-                    // NH stripping for D1: multiply by known NH code
-                    if (isD1 && cohMs > 1) {
-                        const nhBit = NH_CODE[ms % 20] ? -1 : 1;
-                        for (let i = 0; i < fftN; i++) {
-                            cohSumRe[i] += result.corrRe[i] * nhBit;
-                            cohSumIm[i] += result.corrIm[i] * nhBit;
-                        }
-                    } else {
-                        for (let i = 0; i < fftN; i++) {
-                            cohSumRe[i] += result.corrRe[i];
-                            cohSumIm[i] += result.corrIm[i];
-                        }
+                // NH stripping for D1: multiply by known NH code
+                if (isD1 && cohMs > 1) {
+                    const nhBit = NH_CODE[ms % 20] ? -1 : 1;
+                    for (let i = 0; i < fftN; i++) {
+                        cohSumRe[i] += result.corrRe[i] * nhBit;
+                        cohSumIm[i] += result.corrIm[i] * nhBit;
+                    }
+                } else {
+                    for (let i = 0; i < fftN; i++) {
+                        cohSumRe[i] += result.corrRe[i];
+                        cohSumIm[i] += result.corrIm[i];
                     }
                 }
-
-                // |coherent sum|^2
-                for (let i = 0; i < fftN; i++) {
-                    nonCohPower[i] += cohSumRe[i] * cohSumRe[i] + cohSumIm[i] * cohSumIm[i];
-                }
             }
 
-            // Store in grid (downsample code axis for display)
+            // |coherent sum|^2
             for (let i = 0; i < fftN; i++) {
-                fullGrid[d * fftN + i] = nonCohPower[i];
-            }
-            for (let c = 0; c < actualCodeBins; c++) {
-                let maxVal = 0;
-                for (let j = 0; j < codeBinSkip && (c * codeBinSkip + j) < fftN; j++) {
-                    const v = nonCohPower[c * codeBinSkip + j];
-                    if (v > maxVal) maxVal = v;
-                }
-                acqGrid[d * actualCodeBins + c] = maxVal;
+                nonCohPower[i] += cohSumRe[i] * cohSumRe[i] + cohSumIm[i] * cohSumIm[i];
             }
         }
 
-        // Update progress
-        const pct = Math.round(((dIdx + binsPerFrame) / dopplerBins.length) * 100);
-        const lastDIdx = Math.min(endIdx - 1, dopplerBins.length - 1);
-        setStatus(statusCorr, `Searching... ${Math.min(pct, 100)}% (${dopplerBins[lastDIdx]} Hz)`);
+        // Store in grid (downsample code axis for display)
+        for (let i = 0; i < fftN; i++) {
+            fullGrid[d * fftN + i] = nonCohPower[i];
+        }
+        for (let c = 0; c < actualCodeBins; c++) {
+            let maxVal = 0;
+            for (let j = 0; j < codeBinSkip && (c * codeBinSkip + j) < fftN; j++) {
+                const v = nonCohPower[c * codeBinSkip + j];
+                if (v > maxVal) maxVal = v;
+            }
+            acqGrid[d * actualCodeBins + c] = maxVal;
+        }
 
-        // Progressive heatmap update
+        // Update progress and redraw heatmap after each Doppler bin
+        const pct = Math.round(((d + 1) / dopplerBins.length) * 100);
+        setStatus(statusCorr, `Searching... ${pct}% (${dopplerHz} Hz)`);
+
         drawAcquisitionMap(corrCtx, 500, 280,
             acqGrid, dopplerBins.length, actualCodeBins,
             -1, -1, 0, 0);
@@ -859,6 +866,7 @@ Search Parameters:
   Coherent int:    ${cohMs} ms
   Non-coherent:    ${nonCoh} averages
   Sample rate:     ${fs_khz/1000} MHz
+  ADC frequency:   ${adcFs_khz/1000} MHz (decim ${decimRatio}x)
   Nav type:        ${navType} (${isD1 ? '50 bps, NH modulated' : '500 bps, no NH'})
 
 Computation time:  ${elapsed} seconds
